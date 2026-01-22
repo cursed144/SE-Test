@@ -1,4 +1,3 @@
-import os
 import shutil
 from fastapi.testclient import TestClient
 from main import app, STORAGE_DIR, FileCounter
