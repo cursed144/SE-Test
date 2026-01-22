@@ -21,16 +21,17 @@ class FileCounter:
         return self.count
 
 
-
 app = FastAPI(title="File Storage API", version="1.0.0")
 
 # Directory where files will be stored
 STORAGE_DIR = Path("storage")
 STORAGE_DIR.mkdir(exist_ok=True)
 
+
 # Counter for files stored (initialize with existing files count)
 def get_file_count():
     return len([f for f in STORAGE_DIR.iterdir() if f.is_file()])
+
 
 files_stored_counter = FileCounter(get_file_count())
 
@@ -53,25 +54,26 @@ async def root():
 async def get_file(filename: str):
     """
     Retrieve a file by filename.
-    
+
     Args:
         filename: Name of the file to retrieve
-        
+
     Returns:
         FileResponse with the requested file
-        
+
     Raises:
         HTTPException: If file is not found
     """
     file_path = STORAGE_DIR / filename
-    
+
     # Security check: prevent directory traversal
     if not file_path.resolve().is_relative_to(STORAGE_DIR.resolve()):
         raise HTTPException(status_code=400, detail="Invalid filename")
-    
+
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
-    
+        detail = f"File '{filename}' not found"
+        raise HTTPException(status_code=404, detail=detail)
+
     return FileResponse(
         path=file_path,
         filename=filename,
@@ -83,13 +85,13 @@ async def get_file(filename: str):
 async def store_file(file: UploadFile = File(...)):
     """
     Store a file locally on the filesystem.
-    
+
     Args:
         file: The file to upload
-        
+
     Returns:
         JSON response with file information
-        
+
     Raises:
         HTTPException: If file storage fails
     """
@@ -98,21 +100,21 @@ async def store_file(file: UploadFile = File(...)):
         filename = os.path.basename(file.filename)
         if not filename or filename in (".", ".."):
             raise HTTPException(status_code=400, detail="Invalid filename")
-        
+
         file_path = STORAGE_DIR / filename
-        
+
         # Read file content
         content = await file.read()
-        
+
         # Write file to storage directory
         file_exists = file_path.exists()
         with open(file_path, "wb") as f:
             f.write(content)
-        
+
         # Increment counter only if it's a new file
         if not file_exists:
             files_stored_counter.increment()
-        
+
         return {
             "message": "File stored successfully",
             "filename": filename,
@@ -120,14 +122,15 @@ async def store_file(file: UploadFile = File(...)):
             "content_type": file.content_type
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to store file: {str(e)}")
+        error_msg = f"Failed to store file: {str(e)}"
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.get("/files")
 async def list_files():
     """
     List all stored files.
-    
+
     Returns:
         JSON response with list of filenames
     """
@@ -139,7 +142,7 @@ async def list_files():
 async def health_check():
     """
     Health check endpoint.
-    
+
     Returns:
         JSON response indicating server health status
     """
@@ -154,13 +157,13 @@ async def health_check():
 async def metrics():
     """
     Metrics endpoint providing server statistics.
-    
+
     Returns:
         JSON response with various metrics
     """
     files = [f for f in STORAGE_DIR.iterdir() if f.is_file()]
     total_size = sum(f.stat().st_size for f in files)
-    
+
     return {
         "files_stored_total": files_stored_counter.get_count(),
         "files_current": len(files),
@@ -168,4 +171,3 @@ async def metrics():
         "total_storage_mb": round(total_size / (1024 * 1024), 2),
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
-
